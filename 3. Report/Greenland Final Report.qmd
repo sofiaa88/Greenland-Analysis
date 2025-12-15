@@ -1,0 +1,285 @@
+---
+title: "Greenland Tourism Analysis (2020-2024)"
+author: Yuan Wang
+date: 2025-12-01
+date-format: "MMMM YYYY"
+format: 
+  pdf:
+    fig-align: center
+editor: visual
+---
+
+\newpage
+
+```{r, echo= FALSE, message=FALSE, include=FALSE}
+
+## Load packages and files
+
+library(ggplot2)
+library(tidyverse)
+library(tidyr)
+library(dplyr)
+library(shiny)
+library(shinydashboard)
+library(leaflet)
+library(sf)
+library(osmextract)
+```
+
+```{r, echo= FALSE, message=FALSE, include=FALSE}
+
+df <- read_csv("~/Desktop/1. MA615/MA615 Final Project_Greenland/2. Data/greenland.csv")
+
+greenland_geo <- st_read("~/Desktop/1. MA615/MA615 Final Project_Greenland/2. Data/gadm41_GRL_1.json")
+
+st_layers("~/Desktop/1. MA615/MA615 Final Project_Greenland/2. Data/greenland-latest.gpkg")
+
+greenland_osm <- st_read(
+  "~/Desktop/1. MA615/MA615 Final Project_Greenland/2. Data/greenland-latest.gpkg",
+  layer = "points"
+)
+
+# Re-read file with separate columns
+greenland_osm <- oe_read(
+  "~/Desktop/1. MA615/MA615 Final Project_Greenland/2. Data/greenland-latest.osm.pbf",
+  layer = "points",
+  extra_tags = c("aeroway", "tourism", "amenity", "shop")
+)
+
+airports <- greenland_osm %>%
+  filter(aeroway == "aerodrome")
+
+hotels <- greenland_osm %>%
+  filter(tourism == "hotel")
+
+restaurants <- greenland_osm %>%
+  filter(amenity == "restaurant")
+
+
+
+airports <- greenland_osm %>%
+  filter(aeroway == "aerodrome")
+
+hotels <- greenland_osm %>%
+  filter(tourism == "hotel")
+```
+
+```{r, echo= FALSE, message=FALSE, include=FALSE}
+
+## Data Cleaning and Grouping
+
+df <- df[,-4]
+
+df$region <- str_replace(df$region, "Kommuneqarfik Sermersooq \xd8st",
+                         "Kommuneqarfik Sermersooq")
+df$region <- str_replace(df$region, fixed("Ilulissat (*)"), "Ilulissat")
+
+df <- df |>
+  rename("overnight_stays" = "Overnight stays")
+
+avg_stay <- df %>% 
+  filter(unit == "Average overnight stays per guest")
+
+guests <- df %>% 
+  filter (unit == "Number of guests")
+
+num_guests <- df %>% 
+  filter (unit == "Number of guests")
+
+guests_per_region <- df %>% 
+  group_by(region) %>% 
+  summarise(total_guests = round(sum(overnight_stays)))
+
+guests_per_region_yr <- df %>% 
+  group_by(region, time) %>% 
+  summarise(total_guests = round(sum(overnight_stays)))
+
+nationality <- df %>% 
+  filter(unit == "Number of guests") %>%
+  filter(nationality != "Unknown") %>%  # Add this line
+  group_by(nationality, region, time) %>% 
+  summarise(total_guests = round(sum(overnight_stays, na.rm = TRUE)), .groups = "drop")
+```
+
+## Introduction
+
+The purpose of the analysis is to analyze the trends of tourist overnight stays in Greenland from 2020 to 2024. The dataset contains several variables: tourist nationality, year (2020-2024), Greenland's regional municipalities, total overnight stays, guest counts, and average stay duration. It includes six regional entries representing different parts of Greenland. Avannaata Kommunia and Kommune Qeqertalik are combined into one entry and cover the northwestern and west-central regions. Ilulissat is located in western Greenland and, while technically part of Avannaata Kommunia, is reported separately most likely because it contains the UNESCO World Heritage Ilulissat Icefjord, making it Greenland's primary tourism destination. Qeqqata Kommunia is in the central-western area and includes Kangerlussuaq, where Greenland's main international airport is located. Kommuneqarfik Sermersooq Vest represents the western part of the Sermersooq municipality and includes Nuuk, the capital city. Kommune Kujalleq covers the southern region, while Kommuneqarfik Sermersooq represents the eastern and southeastern portions of Sermersooq, which is the most remote and isolated area in the dataset.
+
+These variables enable us to assess how tourism has evolved across different regions and demographic groups during this period.This timeframe is potentially significant as it may capture a period of notable change in Greenland's tourism industry, including potential impacts from the COVID-19 pandemic and shifts in travel patterns.
+
+## Data Cleaning
+
+There was minimal cleaning needed for this dataset. Two of the region names needed to be standardized since there were different versions of the same place. An additional step was taken to convert the name of a column just so that it matched the aesthetics of the other column names.
+
+## Heatmap
+
+```{r, echo= FALSE, warning=FALSE}
+library(ggrepel)
+
+year_data <- guests_per_region_yr %>%
+  filter(time == 2024)
+
+name_mapping <- data.frame(
+  region = c("Avannaata Kommunia and Kommune Qeqertalik",
+             "Ilulissat",
+             "Kommune Kujalleq", 
+             "Kommuneqarfik Sermersooq",
+             "Qeqqata Kommunia"),
+  NAME_1 = c("Qaasuitsup", "Qaasuitsup", "Kujalleq", "Sermersooq", "Qeqqata")
+)
+
+year_data <- year_data %>%
+  left_join(name_mapping, by = "region") %>%
+  group_by(NAME_1) %>%
+  summarise(total_guests = sum(total_guests, na.rm = TRUE), .groups = "drop")
+
+map_data <- greenland_geo %>%
+  left_join(year_data, by = "NAME_1")
+
+# Calculate centroids for labels
+map_centroids <- map_data %>%
+  st_centroid() %>%
+  st_coordinates() %>%
+  as.data.frame() %>%
+  bind_cols(map_data %>% st_drop_geometry())
+
+ggplot(map_data) +
+  geom_sf(aes(fill = total_guests), color = "white", size = 0.5) +
+  geom_label_repel(data = map_centroids, 
+                   aes(x = X, y = Y, label = NAME_1), 
+                   size = 3.5, 
+                   fontface = "bold",
+                   color = "black",
+                   fill = "white",
+                   alpha = 0.8,
+                   box.padding = 1,
+                   point.padding = 0.5,
+                   min.segment.length = 0) +
+  scale_fill_gradient(low = "#FFF5EB", high = "#8B0000", 
+                      name = "Total Guests",
+                      labels = scales::comma,
+                      na.value = "#E0E0E0") +
+  theme_minimal() +
+  labs(caption = expression(bold("Figure 1:") ~ "Tourist Distribution Across Greenland Regions (2024)")) +
+  theme(
+    plot.caption = element_text(size = 10, hjust = 0),
+    legend.position = "right",
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank()
+  )
+```
+
+Figure 1 displays the geographic distribution of tourists across Greenland's regions for 2024. Darker red colors represent higher visitor numbers, while lighter shades represent fewer visitors. Tourism is heavily concentrated in Qaasuitsup (the northwestern region), which received over 200,000 guests. Qeqqata (central-western region) shows moderate tourism activity with lighter red shading, while Sermersooq (eastern region) presents relatively low visitor numbers. Kujalleq (the southern region) shows the least tourism activity, indicated by its very light coloring. The Northeast Greenland National Park region (far northeast) shows no tourism data. This reveals a substantial regional disparity in Greenland's tourism distribution, with the vast majority of visitors concentrated along the western coast, particularly in Qaasuitsup.
+
+## Regional Distribution
+
+```{r, echo= FALSE}
+guests_per_region %>%
+  ggplot(aes(x = reorder(region, total_guests), y = total_guests)) +
+  geom_col(fill = "seagreen") +
+  scale_y_continuous(labels = scales::comma) +
+  theme_minimal() +
+  labs(x = "Region", 
+       y = "Number of Guests",
+       caption = expression(bold("Figure 2:") ~ "Total Guests by Region (2020-2024)")) +
+  coord_flip() +
+  theme(
+    plot.caption = element_text(size = 10, hjust = 0),
+    axis.text = element_text(size = 10)
+  )
+```
+
+Figure 2 uses a bar plot to visualize which regions have the most tourists overall, a sum of all the years. Avannaata Kommunia and Kommune Qeqertalik lead with approximately 700,000 guests, followed by Kommuneqarfik Sermersooq Vest with around 600,000 guests.The top three regions (Avannaata Kommunia and Kommune Qeqertalik, Kommuneqarfik Sermersooq Vest, and Ilulissat) together account for approximately 1.70 million guests, which is roughly 72% of all tourism. This is most likely due to geographic accessibility and the major attractions and infrastructure that are located on the western coast. Western regions dominate tourism because they contain key attractions like the Ilulissat Icefjord and Nuuk, the capital city, and have better air and sea connections. In contrast, the eastern and southern regions are more isolated with limited tourism infrastructure, which explains their significantly lower number compared to the first theree regions.
+
+## Average Stay Duration
+
+```{r, echo= FALSE, warning = FALSE}
+avg_stay %>%
+  group_by(time) %>%
+  summarise(avg_stays = mean(overnight_stays, na.rm = TRUE)) %>%
+  ggplot(aes(x = time, y = avg_stays)) +
+  geom_line(color = "darkgreen", size = 1.5) +
+  geom_point(color = "darkgreen", size = 3) +
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.1)) +
+  theme_minimal() +
+  labs(x = "Year", 
+       y = "Average Overnight Stays",
+       caption = expression(bold("Figure 3:") ~ "Average Stay Across Regions (2020-2024)")) +
+  theme(
+    plot.caption = element_text(size = 10, hjust = 0)
+  )
+```
+
+In Figure 3, the line shows a decline in the average number of overnight stays across Greenland. We don't have the data before 2020, but we can hypothesize that the decline may have been influenced by COVID-19, and the average stay duration has not recovered to pre-decline levels as of 2024. The graph shows a downward trend from approximately 3.2 nights in 2020 to around 2.7 nights in 2024, with a notable dip to about 2.9 nights in 2021, followed by a slight recovery in 2022, but the overall trajectory remains downward through 2024. This information could be valuable for tourism departments and agencies across Greenland in addressing these declines and developing strategies to increase tourism.
+
+Figure 4 provides a more detailed breakdown by differentiating by region. The graph displays tourism trends for each region from 2020 to 2024, revealing distinct recovery patterns. Avannaata Kommunia and Kommune Qeqertalik shows the highest visitor numbers throughout the period, with a sharp increase from 2020 to 2021, followed by sustained growth through 2024. Kommuneqarfik Sermersooq Vest demonstrates a similar recovery pattern, maintaining the second-highest visitor numbers. Ilulissat shows steady growth across all years, while Qeqqata Kommunia exhibits moderate but consistent visitor numbers. The southern and eastern regions, Kommune Kujalleq and Kommuneqarfik Sermersooq, show minimal growth and remain at significantly lower levels throughout the entire period. Most regions show continued growth or stability from 2021 to 2024, suggesting tourism has rebounded, though not all regions benefited equally from this recovery.
+
+## Regional Tourism Trends Over Time
+
+```{r, echo= FALSE}
+guests_per_region_yr %>%
+  ggplot(aes(x = time, y = total_guests, color = region, group = region)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 2.5) +
+  scale_y_continuous(labels = scales::comma) +
+  scale_color_brewer(palette = "Set2") +
+  theme_minimal() +
+  labs(x = "Year", 
+       y = "Total Guests",
+       caption = expression(bold("Figure 4:") ~ "Regional Tourism Trends (2020-2024)"),
+       color = "Region") +
+  theme(
+    plot.caption = element_text(size = 10, hjust = 0),
+    legend.position = "bottom",
+    legend.text = element_text(size = 8)
+  ) +
+  guides(color = guide_legend(ncol = 2))
+```
+
+## Trends by Nationality and Region
+
+```{r nationality-trends, fig.width=12, fig.height=8, echo=FALSE}
+nationality %>%
+  ggplot(aes(x = time, y = total_guests, color = region, group = region)) +
+  geom_line(size = 1) +
+  geom_point(size = 2) +
+  facet_wrap(~ nationality, scales = "free_y", ncol = 3) +
+  scale_y_continuous(labels = scales::comma) +
+  scale_color_brewer(palette = "Set2") +
+  theme_minimal() +
+  labs(x = "Year", 
+       y = "Total Guests",
+       caption = expression(bold("Figure 5:") ~ "Tourism Trends by Nationality and Region (2020-2024)"),
+       color = "Region") +
+  theme(
+    plot.caption = element_text(size = 12, hjust = 0),
+    strip.text = element_text(size = 10, face = "bold"),
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  ) +
+  guides(color = guide_legend(nrow = 2))
+```
+
+Figure 5 displays tourism trends by nationality across all regions from 2020 to 2024. Each graph represents a different country of origin, with colored lines showing visitor distribution across Greenland's regions. Denmark shows the highest overall visitor numbers, followed by Germany and Greenland. Most nationalities display a similar recovery pattern: low numbers in 2020, sharp increases in 2021-2022, and continued growth or stabilization through 2024. Across nearly all nationalities, Avannaata Kommunia and Kommune Qeqertalik (green line) and Kommuneqarfik Sermersooq Vest (yellow line) attract the most visitors, while Kommuneqarfik Sermersooq (pink line) consistently shows the lowest visitation. Denmark appears to have a more even distribution of tourists across regions compared to other nationalities, which show stronger concentration in the northwestern areas. The consistent pattern across all nationalities reinforces the regional disparities observed in earlier figures, with western regions dominating tourism regardless of visitor origin.
+
+\newpage
+
+## Data Sources
+
+**Tourism Data**
+
+-   Source: Statbank Greenland
+-   Dataset: Overnight stays and guests by region and nationality (2020-2024)
+-   URL: <https://bank.stat.gl/pxweb/en/>
+
+**Geographic Data**
+
+-   Source: GADM Database of Global Administrative Areas
+-   Version: 4.1, Level 1 (Regional boundaries)
+-   URL: <https://gadm.org/download_country.html>
+
+**Points of Interest Data**
+
+-   Source: Geofabrik Downloads - OpenStreetMap Data
+-   Dataset: Greenland OSM extract
+-   URL: <https://download.geofabrik.de/north-america/greenland.html>
