@@ -12,14 +12,11 @@ library(osmextract)
 library(DT)  
 
 # Load data
-df <- read_csv("~/Desktop/1. MA615/MA615 Final Project_Greenland/2. Data/greenland.csv")
-greenland_geo <- st_read("~/Desktop/1. MA615/MA615 Final Project_Greenland/2. Data/gadm41_GRL_1.json")
-
-greenland_osm <- oe_read(
-  "~/Desktop/1. MA615/MA615 Final Project_Greenland/2. Data/greenland-latest.osm.pbf",
-  layer = "points",
-  extra_tags = c("aeroway", "tourism", "amenity", "shop")
-)
+df <- read_csv("greenland.csv") 
+greenland_geo <- st_read("gadm41_GRL_1.json") 
+greenland_osm <- oe_read( "greenland-latest.osm.pbf", 
+                          layer = "points", 
+                          extra_tags = c("aeroway", "tourism", "amenity", "shop"))
 
 airports <- greenland_osm %>%
   filter(aeroway == "aerodrome")
@@ -80,15 +77,27 @@ ui <- dashboardPage(
     tabItems(
       
       # Tab 1 - Introduction
-      tabItem(tabName = "intro",
-              h2("Greenland Tourism Data Exploration"),
-              p("Use the sidebar to explore different aspects of the data."),
-              p("- Heatmap: Tourist distribution across regions and years"),
-              p("- Region: Guests by region"),
-              p("- Mean Overnight Stays per Visit"),
-              p("- Tourism by Nationality: Number of tourists from each nationality"),
-              p("- Cleaning & Analysis"),
-              p("- Sources")
+      tabItem(
+        tabName = "intro",
+        
+        h2(
+          "Greenland Tourism Data Exploration",
+          style = "margin-bottom: 15px;"
+        ),
+        
+        tags$img(
+          src = "Ilulissat_Icefjord.jpg",
+          width = "100%",
+          style = "max-width:1000px; display:block; margin: 0 auto 25px;"
+        ),
+        
+        p("Use the sidebar to explore different aspects of the data:"),
+        p("- Heatmap: Tourist distribution across regions and years"),
+        p("- Region: Guests by region"),
+        p("- Mean Overnight Stays per Visit"),
+        p("- Tourism by Nationality: Number of tourists from each nationality"),
+        p("- Cleaning & Analysis"),
+        p("- Sources")
       ),
       
       # Tab 2 - Heatmap
@@ -116,9 +125,18 @@ ui <- dashboardPage(
       ),
       
       # Tab 4 - Average Stay
-      tabItem(tabName = "time",
-              h2("Average Overnight Stays per Visit"),
-              plotOutput("avg_trend_plot")
+      tabItem(
+        tabName = "time",
+        
+        h2("Average Overnight Stays per Visit"),
+        
+        plotOutput("avg_trend_plot"),
+        
+        tags$img(
+          src = "houses.jpg",
+          width = "100%",
+          style = "max-width:900px; display:block; margin: 20px auto 0;"
+        )
       ),
       
       # Tab 5 - Nationality Trends
@@ -153,7 +171,7 @@ ui <- dashboardPage(
                   p("From the trend graph in the average stay tab, the line shows a decline in the average number of overnight stays across Greenland. We don't have the data before 2020, but we can hypothesize that the decline may have been influenced by COVID-19, and the average stay duration has not recovered to pre-decline levels as of 2024. The graph shows a downward trend from approximately 3.2 nights in 2020 to around 2.7 nights in 2024, with a notable dip to about 2.9 nights in 2021, followed by a slight recovery in 2022, but the overall trajectory remains downward through 2024. This information could be valuable for tourism departments and agencies across Greenland in addressing these declines and developing strategies to increase tourism. "),
                   
                   h4("Tourism by Nationality"),
-                  p("displays tourism trends by nationality across all regions from 2020 to 2024. Each graph represents a different country of origin, with colored lines showing visitor distribution across Greenland's regions. Denmark shows the highest overall visitor numbers, followed by Germany and Greenland. Most nationalities display a similar recovery pattern: low numbers in 2020, sharp increases in 2021-2022, and continued growth or stabilization through 2024. Across nearly all nationalities, Avannaata Kommunia and Kommune Qeqertalik (green line) and Kommuneqarfik Sermersooq Vest (yellow line) attract the most visitors, while Kommuneqarfik Sermersooq (pink line) consistently shows the lowest visitation. Denmark appears to have a more even distribution of tourists across regions compared to other nationalities, which show stronger concentration in the northwestern areas. The consistent pattern across all nationalities reinforces the regional disparities observed in earlier figures, with western regions dominating tourism regardless of visitor origin.")
+                  p("From the multiple graphs, we can observe tourism trends by nationality across all regions from 2020 to 2024. Each graph represents a different country of origin, with colored lines showing visitor distribution across Greenland's regions. Denmark shows the highest overall visitor numbers, followed by Germany and Greenland. Most nationalities display a similar recovery pattern: low numbers in 2020, sharp increases in 2021-2022, and continued growth or stabilization through 2024. Across nearly all nationalities, Avannaata Kommunia and Kommune Qeqertalik (green line) and Kommuneqarfik Sermersooq Vest (yellow line) attract the most visitors, while Kommuneqarfik Sermersooq (pink line) consistently shows the lowest visitation. Denmark appears to have a more even distribution of tourists across regions compared to other nationalities, which show stronger concentration in the northwestern areas. The consistent pattern across all nationalities reinforces the regional disparities observed in earlier figures, with western regions dominating tourism regardless of visitor origin.")
                 
                 )
               )
