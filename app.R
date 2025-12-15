@@ -9,7 +9,7 @@ library(shinydashboard)
 library(leaflet)
 library(sf)
 library(osmextract)
-library(DT)  # Added this
+library(DT)  
 
 # Load data
 df <- read_csv("~/Desktop/1. MA615/MA615 Final Project_Greenland/2. Data/greenland.csv")
@@ -356,5 +356,5 @@ server <- function(input, output, session){
   
 }
 
-# Run the app
+# Run app
 shinyApp(ui, server)
